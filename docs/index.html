@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PulseTraffic AI - Multi-Junction Command Center</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Leaflet Map CSS/JS for Google Maps style Telematics -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #0f172a; color: #f8fafc; }
+    .glass-card { background: rgba(30, 41, 59, 0.75); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+    .glow-cyan { box-shadow: 0 0 20px rgba(6, 182, 212, 0.35); }
+    .glow-red { box-shadow: 0 0 25px rgba(239, 68, 68, 0.5); }
+    .nav-btn.active { background-color: #2563eb; color: #ffffff; border-color: #3b82f6; }
+    #leafletMap { height: 480px; width: 100%; border-radius: 1rem; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-950 text-slate-100">
+
+  <!-- Header Navigation -->
+  <header class="glass-card sticky top-0 z-50 px-6 py-4 flex flex-col md:flex-row justify-between items-center border-b border-slate-800 bg-slate-900/90">
+    <div class="flex items-center gap-3">
+      <div class="p-2.5 bg-gradient-to-tr from-blue-600 to-cyan-400 rounded-xl shadow-lg">
+        <i data-lucide="activity" class="w-6 h-6 text-white"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-xl font-extrabold tracking-tight bg-gradient-to-r from-blue-400 via-cyan-300 to-emerald-400 bg-clip-text text-transparent">PulseTraffic AI</h1>
+          <span class="bg-blue-900/60 text-blue-300 border border-blue-700/50 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">v3.0 Multi-Junction</span>
+        </div>
+        <p class="text-xs text-slate-400">Team Signal Shifters &bull; Smart Urban Traffic & Emergency Corridor System</p>
+      </div>
+    </div>
+
+    <nav class="flex items-center gap-1 mt-4 md:mt-0 bg-slate-950/80 p-1.5 rounded-xl border border-slate-800/80">
+      <button onclick="switchTab('dashboard')" id="tab-dashboard" class="nav-btn active flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-lg transition-all border border-transparent">
+        <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Simulation & Control
+      </button>
+      <button onclick="switchTab('map')" id="tab-map" class="nav-btn flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-lg transition-all border border-transparent text-slate-400">
+        <i data-lucide="map-pin" class="w-4 h-4"></i> GIS Multi-Junction Map
+      </button>
+      <button onclick="switchTab('cameras')" id="tab-cameras" class="nav-btn flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-lg transition-all border border-transparent text-slate-400">
+        <i data-lucide="camera" class="w-4 h-4"></i> CCTV AI Vision
+      </button>
+      <button onclick="switchTab('analytics')" id="tab-analytics" class="nav-btn flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-lg transition-all border border-transparent text-slate-400">
+        <i data-lucide="bar-chart-3" class="w-4 h-4"></i> System Analytics
+      </button>
+    </nav>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-grow p-4 md:p-6 max-w-7xl w-full mx-auto space-y-6">
+
+    <!-- PAGE 1: SIMULATION & CONTROL -->
+    <section id="page-dashboard" class="space-y-6">
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-slate-900 via-slate-850 to-blue-950/40 p-5 rounded-2xl border border-slate-800">
+        <div>
+          <h2 class="text-xl font-bold text-white flex items-center gap-2">
+            <span class="w-2.5 h-2.5 bg-cyan-400 rounded-full animate-ping"></span>
+            Real-time Autonomous Junction Engine
+          </h2>
+          <p class="text-xs text-slate-400 mt-1">Select Active Intersection along the Corridor:</p>
+        </div>
+
+        <!-- Junction Selection Dropdown -->
+        <div class="flex items-center gap-3">
+          <select id="junctionSelect" onchange="changeJunction(this.value)" class="bg-slate-900 border border-slate-700 text-cyan-300 text-xs font-bold px-3 py-2.5 rounded-xl outline-none">
+            <option value="j1">Junction 01: VJIT College Main Gate</option>
+            <option value="j2">Junction 02: Chilkur X Road Junction</option>
+            <option value="j3">Junction 03: Moinabad Bus Stand</option>
+            <option value="j4">Junction 04: APPA Junction Flyover</option>
+          </select>
+          <button id="emergencyBtn" onclick="toggleEmergency()" class="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition flex items-center gap-2 glow-red">
+            <i data-lucide="siren" class="w-4 h-4 animate-bounce"></i> Corridor Preemption (500m)
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Canvas Viewport -->
+        <div class="lg:col-span-2 glass-card p-4 rounded-2xl flex flex-col justify-between">
+          <div class="flex justify-between items-center mb-3">
+            <span id="activeJunctionTitle" class="text-xs font-bold uppercase tracking-wider text-cyan-400">Junction 01: VJIT College Main Gate</span>
+            <span id="wsStatus" class="bg-emerald-950/80 text-emerald-400 border border-emerald-700/50 text-[11px] font-mono px-3 py-1 rounded-full flex items-center gap-1.5">
+              <span class="w-2 h-2 bg-emerald-400 rounded-full"></span> MQTT/WebSocket Telemetry Live
+            </span>
+          </div>
+          <div class="relative w-full aspect-video bg-slate-950 rounded-xl overflow-hidden border border-slate-800">
+            <canvas id="trafficCanvas" width="800" height="450" class="w-full h-full object-contain"></canvas>
+          </div>
+          <div class="grid grid-cols-4 gap-3 mt-4">
+            <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+              <span class="text-[10px] text-slate-400 font-bold">NORTH LANE</span>
+              <div id="northCount" class="text-sm font-bold text-slate-100">0 vehicles</div>
+              <div id="northSignal" class="text-xs font-semibold text-red-400">RED</div>
+            </div>
+            <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+              <span class="text-[10px] text-slate-400 font-bold">SOUTH LANE</span>
+              <div id="southCount" class="text-sm font-bold text-slate-100">0 vehicles</div>
+              <div id="southSignal" class="text-xs font-semibold text-red-400">RED</div>
+            </div>
+            <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+              <span class="text-[10px] text-slate-400 font-bold">EAST LANE</span>
+              <div id="eastCount" class="text-sm font-bold text-slate-100">0 vehicles</div>
+              <div id="eastSignal" class="text-xs font-semibold text-red-400">RED</div>
+            </div>
+            <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+              <span class="text-[10px] text-slate-400 font-bold">WEST LANE</span>
+              <div id="westCount" class="text-sm font-bold text-slate-100">0 vehicles</div>
+              <div id="westSignal" class="text-xs font-semibold text-emerald-400">GREEN</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Telemetry & Logs -->
+        <div class="flex flex-col gap-6">
+          <div class="glass-card p-5 rounded-2xl">
+            <h3 class="text-sm font-bold text-white mb-3 flex items-center gap-2"><i data-lucide="cpu" class="w-4 h-4 text-cyan-400"></i> Performance Telemetry</h3>
+            <div class="space-y-2 font-mono text-xs">
+              <div class="flex justify-between bg-slate-900 p-2.5 rounded-lg border border-slate-800"><span class="text-slate-400">MQTT Latency:</span><span class="text-cyan-400 font-bold">&lt; 18 ms</span></div>
+              <div class="flex justify-between bg-slate-900 p-2.5 rounded-lg border border-slate-800"><span class="text-slate-400">YOLOv8 FPS:</span><span class="text-emerald-400 font-bold">60.2 FPS</span></div>
+              <div class="flex justify-between bg-slate-900 p-2.5 rounded-lg border border-slate-800"><span class="text-slate-400">500m Geofence:</span><span id="geofenceTxt" class="text-slate-300 font-bold">ARMED</span></div>
+            </div>
+          </div>
+          <div class="glass-card p-5 rounded-2xl flex-grow flex flex-col min-h-[200px]">
+            <h3 class="text-sm font-bold text-white mb-3 flex items-center gap-2"><i data-lucide="terminal" class="w-4 h-4 text-cyan-400"></i> Event Stream</h3>
+            <div id="logStream" class="bg-slate-950 p-3 rounded-xl border border-slate-800 font-mono text-[11px] text-slate-300 flex-grow overflow-y-auto max-h-48 space-y-1"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE 2: GIS MULTI-JUNCTION MAP (LEAFLET / GOOGLE MAPS STYLE) -->
+    <section id="page-map" class="hidden space-y-6">
+      <div class="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex justify-between items-center">
+        <div>
+          <h2 class="text-xl font-bold text-white flex items-center gap-2"><i data-lucide="map-pin" class="w-5 h-5 text-cyan-400"></i> VJIT - Moinabad Corridor GIS Telematics Map</h2>
+          <p class="text-xs text-slate-400 mt-1">Live tracking of 4 connected signals with automatic ambulance corridor preemption.</p>
+        </div>
+      </div>
+      <div class="glass-card p-4 rounded-2xl border border-slate-800">
+        <div id="leafletMap"></div>
+      </div>
+    </section>
+
+    <!-- PAGE 3: CAMERAS & ANALYTICS -->
+    <section id="page-cameras" class="hidden space-y-6">
+      <div class="bg-slate-900 p-5 rounded-2xl border border-slate-800"><h2 class="text-xl font-bold text-white">YOLOv8 Optical Detection Matrix</h2></div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="glass-card p-4 rounded-2xl relative aspect-video bg-slate-900 flex items-center justify-center">
+          <span class="text-xs font-mono text-cyan-400">CAM-01 [VJIT Main Gate Stream] - Active</span>
+        </div>
+        <div class="glass-card p-4 rounded-2xl relative aspect-video bg-slate-900 flex items-center justify-center">
+          <span class="text-xs font-mono text-cyan-400">CAM-02 [Chilkur X Road Stream] - Active</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="page-analytics" class="hidden space-y-6">
+      <div class="glass-card p-5 rounded-2xl"><h3 class="text-sm font-bold text-white mb-4">Traffic Optimization Delay Comparison (sec)</h3><canvas id="analyticsChart" class="w-full h-64"></canvas></div>
+    </section>
+  </main>
+
+  <script>
+    lucide.createIcons();
+
+    function switchTab(tabId) {
+      document.querySelectorAll('main > section').forEach(sec => sec.classList.add('hidden'));
+      document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById(`page-${tabId}`).classList.remove('hidden');
+      document.getElementById(`tab-${tabId}`).classList.add('active');
+      if (tabId === 'map' && window.leafletMap) setTimeout(() => window.leafletMap.invalidateSize(), 200);
+    }
+
+    function changeJunction(val) {
+      const text = document.getElementById('junctionSelect').options[document.getElementById('junctionSelect').selectedIndex].text;
+      document.getElementById('activeJunctionTitle').innerText = text;
+      logMessage(`Switched monitoring view to <b>${text}</b>.`);
+    }
+
+    function logMessage(msg) {
+      const stream = document.getElementById('logStream');
+      const time = new Date().toLocaleTimeString();
+      stream.innerHTML = `<div><span class="text-cyan-400">[${time}]</span> ${msg}</div>` + stream.innerHTML;
+    }
+
+    // Leaflet Multi-Junction Google Map Setup
+    let leafletMap;
+    document.addEventListener('DOMContentLoaded', () => {
+      // Centered on VJIT / Moinabad Corridor, Hyderabad
+      leafletMap = L.map('leafletMap').setView([17.3340, 78.3180], 13);
+      window.leafletMap = leafletMap;
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(leafletMap);
+
+      const junctions = [
+        { name: "Junction 01: VJIT Main Gate", lat: 17.3362, lng: 78.3292 },
+        { name: "Junction 02: Chilkur X Road", lat: 17.3311, lng: 78.3050 },
+        { name: "Junction 03: Moinabad Bus Stand", lat: 17.3225, lng: 78.2721 },
+        { name: "Junction 04: APPA Junction Flyover", lat: 17.3512, lng: 78.3688 }
+      ];
+
+      junctions.forEach((j) => {
+        const marker = L.marker([j.lat, j.lng]).addTo(leafletMap);
+        marker.bindPopup(`<b>${j.name}</b><br>Signal Status: Dynamic AI Active`);
+        
+        // Add 500m Geofence Visualization
+        L.circle([j.lat, j.lng], {
+          color: '#06b6d4',
+          fillColor: '#0891b2',
+          fillOpacity: 0.15,
+          radius: 500
+        }).addTo(leafletMap);
+      });
+    });
+
+    // Simple Traffic Canvas Engine
+    const canvas = document.getElementById('trafficCanvas');
+    const ctx = canvas.getContext('2d');
+    let currentGreen = 'west';
+
+    function draw() {
+      ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#1e293b'; ctx.fillRect(350, 0, 100, 450); ctx.fillRect(0, 175, 800, 100);
+      ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 1.5; ctx.strokeRect(350, 175, 100, 100);
+      requestAnimationFrame(draw);
+    }
+    draw();
+
+    function toggleEmergency() {
+      const txt = document.getElementById('geofenceTxt');
+      if (txt.innerText === 'ARMED') {
+        txt.innerText = 'TRIGGERED (500m)'; txt.className = 'text-red-400 font-bold animate-pulse';
+        logMessage('<span class="text-red-400 font-bold">[EMERGENCY] Corridor Green-Wave Activated across Junctions!</span>');
+      } else {
+        txt.innerText = 'ARMED'; txt.className = 'text-slate-300 font-bold';
+        logMessage('Corridor preemption disengaged.');
+      }
+    }
+  </script>
+</body>
+</html>
